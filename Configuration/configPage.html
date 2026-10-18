@@ -62,8 +62,7 @@
                 pluginUniqueId: '7f3a2b1e-9c4d-4e8a-b6f2-1d5c8a9e3b07'
             };
 
-            function renderLibraries(libraries, selected) {
-                var container = document.querySelector('#libraryList');
+            function renderLibraries(container, libraries, selected) {
                 if (!libraries || libraries.length === 0) {
                     container.innerHTML = '<div class="fieldDescription">'
                         + 'No se encontraron bibliotecas.</div>';
@@ -82,6 +81,7 @@
             }
 
             function loadLibraries() {
+
                 if (typeof ApiClient === 'undefined' || !ApiClient.getJSON) {
                     return Promise.reject(new Error('ApiClient no disponible'));
                 }
@@ -110,11 +110,11 @@
                     page.querySelector('#chkNoExtension').checked = config.IgnoreFilesWithoutExtension;
                     page.querySelector('#txtAllowed').value =
                         (config.AllowedExtensions || []).join('\n');
-                    renderLibraries(libraries, config.TargetLibraries || []);
+                    renderLibraries(page.querySelector('#libraryList'), libraries, config.TargetLibraries || []);
                     Dashboard.hideLoadingMsg();
                 }).catch(function (err) {
                     Dashboard.hideLoadingMsg();
-                    var container = document.querySelector('#libraryList');
+                    var container = page.querySelector('#libraryList');
                     if (container) {
                         container.innerHTML = '<div class="fieldDescription" style="color:#c33">'
                             + 'Error cargando bibliotecas: '
