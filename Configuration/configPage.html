@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <title>Media Only Filter</title>
+</head>
+
+<body>
+    <div id="MediaOnlyConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+        data-require="emby-input,emby-button,emby-toggle,emby-textarea,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="MediaOnlyConfigForm">
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-toggle" type="checkbox" id="chkEnabled" />
+                            <span>Filtro activo</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Ignorar durante el escaneo cualquier archivo cuya extensión no esté en la lista.
+                        </div>
+                    </div>
+
+                    <h3 class="checkboxListLabel">Bibliotecas donde se aplica el filtro</h3>
+                    <div class="fieldDescription">
+                        Solo se filtran los archivos dentro de las bibliotecas marcadas.
+                        Si no marcas ninguna, el plugin no hace nada.
+                    </div>
+                    <div id="libraryList" class="checkboxList paperList" style="padding: .5em 1em 1em; margin: .5em 0;">
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-toggle" type="checkbox" id="chkNoExtension" />
+                            <span>Ignorar archivos sin extensión</span>
+                        </label>
+                    </div>
+
+                    <div class="textareaContainer">
+                        <label class="textareaLabel" for="txtAllowed">
+                            Extensiones permitidas (una por línea, sin punto)
+                        </label>
+                        <textarea is="emby-textarea" id="txtAllowed" rows="16"></textarea>
+                        <div class="fieldDescription">
+                            Ejemplos: mp4, mkv, jpg, png.
+                            Añade srt, ass, vtt, nfo… si la biblioteca filtrada también
+                            debe conservar subtítulos o metadatos locales.
+                        </div>
+                    </div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block">
+                            <span>Guardar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var MediaOnlyConfig = {
+                pluginUniqueId: '7f3a2b1e-9c4d-4e8a-b6f2-1d5c8a9e3b07'
+            };
+
+            function renderLibraries(libraries, selected) {
+                var container = document.querySelector('#libraryList');
+                if (!libraries || libraries.length === 0) {
+                    container.innerHTML = '<div class="fieldDescription">'
+                        + 'No se encontraron bibliotecas.</div>';
+                    return;
+                }
+                container.innerHTML = libraries.map(function (lib) {
+                    var checked = selected.indexOf(lib.Name) >= 0 ? ' checked' : '';
+                    var type = lib.CollectionType ? ' (' + lib.CollectionType + ')' : '';
+                    return '<div class="checkboxContainer">'
+                        + '<label>'
+                        + '<input is="emby-checkbox" type="checkbox" class="chkLibrary" '
+                        + 'data-name="' + lib.Name + '"' + checked + ' />'
+                        + '<span>' + lib.Name + type + '</span>'
+                        + '</label></div>';
+                }).join('');
+            }
+
+            function loadLibraries() {
+                if (typeof ApiClient === 'undefined' || !ApiClient.getJSON) {
+                    return Promise.reject(new Error('ApiClient no disponible'));
+                }
+                return ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders'))
+                    .then(null, function (err) {
+                        var url = ApiClient.getUrl('Library/VirtualFolders');
+                        if (typeof Dashboard !== 'undefined' && Dashboard.getCurrentUserId) {
+                            url += '?userId=' + encodeURIComponent(Dashboard.getCurrentUserId());
+                            return ApiClient.getJSON(url);
+                        }
+                        throw err;
+                    });
+            }
+
+            function initPage() {
+                var page = document.querySelector('#MediaOnlyConfigPage');
+                if (!page) return;
+                Dashboard.showLoadingMsg();
+                Promise.all([
+                    ApiClient.getPluginConfiguration(MediaOnlyConfig.pluginUniqueId),
+                    loadLibraries()
+                ]).then(function (results) {
+                    var config = results[0];
+                    var libraries = results[1] || [];
+                    page.querySelector('#chkEnabled').checked = config.Enabled;
+                    page.querySelector('#chkNoExtension').checked = config.IgnoreFilesWithoutExtension;
+                    page.querySelector('#txtAllowed').value =
+                        (config.AllowedExtensions || []).join('\n');
+                    renderLibraries(libraries, config.TargetLibraries || []);
+                    Dashboard.hideLoadingMsg();
+                }).catch(function (err) {
+                    Dashboard.hideLoadingMsg();
+                    var container = document.querySelector('#libraryList');
+                    if (container) {
+                        container.innerHTML = '<div class="fieldDescription" style="color:#c33">'
+                            + 'Error cargando bibliotecas: '
+                            + (err && err.message ? err.message : err)
+                            + '</div>';
+                    }
+                });
+            }
+
+            (function () {
+                var page = document.querySelector('#MediaOnlyConfigPage');
+                page.addEventListener('pageshow', initPage);
+                page.addEventListener('viewshow', initPage);
+                setTimeout(initPage, 500);
+            })();
+
+            document.querySelector('#MediaOnlyConfigForm')
+                .addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var page = this.closest('#MediaOnlyConfigPage');
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(MediaOnlyConfig.pluginUniqueId).then(function (config) {
+                        config.Enabled = page.querySelector('#chkEnabled').checked;
+                        config.IgnoreFilesWithoutExtension = page.querySelector('#chkNoExtension').checked;
+                        config.AllowedExtensions = page.querySelector('#txtAllowed').value
+                            .split(/[\r\n,;]+/)
+                            .map(function (s) { return s.trim().replace(/^\./, '').toLowerCase(); })
+                            .filter(function (s) { return s.length > 0; });
+                        config.TargetLibraries = Array.prototype.slice
+                            .call(page.querySelectorAll('.chkLibrary:checked'))
+                            .map(function (c) { return c.getAttribute('data-name'); });
+                        ApiClient.updatePluginConfiguration(
+                            MediaOnlyConfig.pluginUniqueId, config
+                        ).then(Dashboard.processPluginConfigurationUpdateResult);
+                    });
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+
+</html>

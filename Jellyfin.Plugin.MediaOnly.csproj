@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.MediaOnly</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.MediaOnly</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Guid visible en AssemblyInfo para el manifest -->
+    <Version>1.0.0.0</Version>
+  </PropertyGroup>
+
+  <!--
+    Se compila contra las DLLs del servidor instalado (D:\Jellyfin\Server,
+    Jellyfin 12.1 net10.0). Así el plugin queda ligado al ABI exacto del
+    servidor sin necesitar el SDK de .NET 10.
+    <Private>false</Private> = no copiarlas al output (ya las aporta el host).
+  -->
+  <ItemGroup>
+    <Reference Include="D:\Jellyfin\Server\MediaBrowser.Controller.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="D:\Jellyfin\Server\MediaBrowser.Common.dll">
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="D:\Jellyfin\Server\MediaBrowser.Model.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+</Project>
