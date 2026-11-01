@@ -1,0 +1,16 @@
+name: "Media Only Filter"
+guid: "7f3a2b1e-9c4d-4e8a-b6f2-1d5c8a9e3b07"
+version: "1.0.0.0"
+targetAbi: "12.1.0.0"
+framework: "net10.0"
+owner: "NeN"
+overview: "Ignora archivos que no sean vídeo o imagen al escanear bibliotecas."
+description: >
+  Aplica una regla de resolución (IResolverIgnoreRule) que descarta durante el
+  escaneo de bibliotecas cualquier archivo cuya extensión no figure en la lista
+  configurable de extensiones permitidas (vídeo e imagen por defecto).
+category: "General"
+artifacts:
+  - "Jellyfin.Plugin.MediaOnly.dll"
+changelog: |-
+  - Versión inicial

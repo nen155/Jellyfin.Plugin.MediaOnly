@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Jellyfin.Plugin.MediaOnly</RootNamespace>
+    <AssemblyName>Jellyfin.Plugin.MediaOnly</AssemblyName>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <!-- Guid visible en AssemblyInfo para el manifest -->
+    <Version>1.0.0.0</Version>
+  </PropertyGroup>
+
+  <!-- Las librerías de Jellyfin las aporta el servidor en runtime -->
+  <ItemGroup>
+    <PackageReference Include="Jellyfin.Controller" Version="12.1.*" ExcludeAssets="runtime" />
+    <PackageReference Include="Jellyfin.Model" Version="12.1.*" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Configuration\configPage.html" />
+  </ItemGroup>
+
+</Project>

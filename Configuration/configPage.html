@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <title>Media Only Filter</title>
+</head>
+
+<body>
+    <div id="MediaOnlyConfigPage" data-role="page" class="page type-interior pluginConfigurationPage"
+        data-require="emby-input,emby-button,emby-toggle,emby-checkbox">
+        <div data-role="content">
+            <div class="content-primary">
+                <form id="MediaOnlyConfigForm">
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-toggle" type="checkbox" id="chkEnabled" />
+                            <span>Filtro activo</span>
+                        </label>
+                        <div class="fieldDescription checkboxFieldDescription">
+                            Ignorar durante el escaneo cualquier archivo cuya extensión no esté en la lista.
+                        </div>
+                    </div>
+
+                    <h3 class="checkboxListLabel">Bibliotecas donde se aplica el filtro</h3>
+                    <div class="fieldDescription">
+                        Solo se filtran los archivos dentro de las bibliotecas marcadas.
+                        Si no marcas ninguna, el plugin no hace nada.
+                    </div>
+                    <div id="libraryList" class="checkboxList paperList" style="padding: .5em 1em 1em; margin: .5em 0;">
+                    </div>
+
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label>
+                            <input is="emby-toggle" type="checkbox" id="chkNoExtension" />
+                            <span>Ignorar archivos sin extensión</span>
+                        </label>
+                    </div>
+
+                    <h3 class="checkboxListLabel">Extensiones permitidas</h3>
+                    <div class="fieldDescription">
+                        Ficheros que pasan el filtro (sin punto). Ejemplos: mp4, mkv, jpg, png.
+                        Añade srt, ass, vtt, nfo… si la biblioteca filtrada también
+                        debe conservar subtítulos o metadatos locales.
+                    </div>
+                    <div id="edAllowed"></div>
+
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block">
+                            <span>Guardar</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+            var MediaOnlyConfig = {
+                pluginUniqueId: '7f3a2b1e-9c4d-4e8a-b6f2-1d5c8a9e3b07'
+            };
+
+            var allowedEditor = null;
+
+            // Editor de etiquetas reutilizable (lista eliminable + boton Anadir).
+            function createTagEditor(containerId, opts) {
+                var container = document.getElementById(containerId);
+                var items = [];
+                container.innerHTML = '';
+
+                var list = document.createElement('div');
+                list.className = 'paperList';
+                list.style.cssText = 'padding:.3em .8em;margin:.4em 0;max-height:14em;overflow-y:auto;';
+                container.appendChild(list);
+
+                var addRow = document.createElement('div');
+                addRow.style.cssText = 'display:flex;gap:.6em;align-items:flex-end;';
+                addRow.innerHTML =
+                    '<div class="inputContainer" style="flex:1;margin:0;">'
+                    + '<input is="emby-input" type="text" class="newItem" label="' + opts.addLabel + '" />'
+                    + '</div>'
+                    + '<button is="emby-button" type="button" class="raised btnAddItem">'
+                    + '<span>Añadir</span></button>';
+                container.appendChild(addRow);
+
+                function render() {
+                    if (items.length === 0) {
+                        list.innerHTML = '<div class="fieldDescription" style="padding:.4em 0;">'
+                            + 'Sin elementos.</div>';
+                        return;
+                    }
+                    list.innerHTML = '';
+                    items.forEach(function (item, idx) {
+                        var row = document.createElement('div');
+                        row.style.cssText = 'display:flex;align-items:center;gap:.6em;padding:.25em 0;';
+                        var text = document.createElement('span');
+                        text.style.cssText = 'flex:1;font-family:monospace;font-size:.9em;word-break:break-all;';
+                        text.textContent = item;
+                        var btn = document.createElement('button');
+                        btn.setAttribute('is', 'emby-button');
+                        btn.setAttribute('type', 'button');
+                        btn.className = 'raised';
+                        btn.style.cssText = 'min-width:auto;padding:0 .6em;';
+                        btn.innerHTML = '<span>✕</span>';
+                        btn.addEventListener('click', function () {
+                            items.splice(idx, 1);
+                            render();
+                        });
+                        row.appendChild(text);
+                        row.appendChild(btn);
+                        list.appendChild(row);
+                    });
+                }
+
+                function add() {
+                    var input = addRow.querySelector('.newItem');
+                    var v = input.value.trim().replace(/^\./, '').toLowerCase();
+                    if (v.length > 0 && items.indexOf(v) < 0) {
+                        items.push(v);
+                        input.value = '';
+                        render();
+                    }
+                }
+
+                addRow.querySelector('.btnAddItem').addEventListener('click', add);
+                addRow.querySelector('.newItem').addEventListener('keydown', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        add();
+                    }
+                });
+
+                render();
+
+                return {
+                    getItems: function () { return items.slice(); },
+                    setItems: function (arr) { items = (arr || []).slice(); render(); }
+                };
+            }
+
+            function renderLibraries(container, libraries, selected) {
+                if (!libraries || libraries.length === 0) {
+                    container.innerHTML = '<div class="fieldDescription">'
+                        + 'No se encontraron bibliotecas.</div>';
+                    return;
+                }
+                container.innerHTML = libraries.map(function (lib) {
+                    var checked = selected.indexOf(lib.Name) >= 0 ? ' checked' : '';
+                    var type = lib.CollectionType ? ' (' + lib.CollectionType + ')' : '';
+                    return '<div class="checkboxContainer">'
+                        + '<label>'
+                        + '<input is="emby-checkbox" type="checkbox" class="chkLibrary" '
+                        + 'data-name="' + lib.Name + '"' + checked + ' />'
+                        + '<span>' + lib.Name + type + '</span>'
+                        + '</label></div>';
+                }).join('');
+            }
+
+            function loadLibraries() {
+
+                if (typeof ApiClient === 'undefined' || !ApiClient.getJSON) {
+                    return Promise.reject(new Error('ApiClient no disponible'));
+                }
+                return ApiClient.getJSON(ApiClient.getUrl('Library/VirtualFolders'))
+                    .then(null, function (err) {
+                        var url = ApiClient.getUrl('Library/VirtualFolders');
+                        if (typeof Dashboard !== 'undefined' && Dashboard.getCurrentUserId) {
+                            url += '?userId=' + encodeURIComponent(Dashboard.getCurrentUserId());
+                            return ApiClient.getJSON(url);
+                        }
+                        throw err;
+                    });
+            }
+
+            function initPage() {
+                var page = document.querySelector('#MediaOnlyConfigPage');
+                if (!page) return;
+                if (!allowedEditor) {
+                    allowedEditor = createTagEditor('edAllowed', { addLabel: 'Extensión, ej.: mkv' });
+                }
+                Dashboard.showLoadingMsg();
+                Promise.all([
+                    ApiClient.getPluginConfiguration(MediaOnlyConfig.pluginUniqueId),
+                    loadLibraries()
+                ]).then(function (results) {
+                    var config = results[0];
+                    var libraries = results[1] || [];
+                    page.querySelector('#chkEnabled').checked = config.Enabled;
+                    page.querySelector('#chkNoExtension').checked = config.IgnoreFilesWithoutExtension;
+                    allowedEditor.setItems(config.AllowedExtensions || []);
+                    renderLibraries(page.querySelector('#libraryList'), libraries, config.TargetLibraries || []);
+                    Dashboard.hideLoadingMsg();
+                }).catch(function (err) {
+                    Dashboard.hideLoadingMsg();
+                    var container = page.querySelector('#libraryList');
+                    if (container) {
+                        container.innerHTML = '<div class="fieldDescription" style="color:#c33">'
+                            + 'Error cargando bibliotecas: '
+                            + (err && err.message ? err.message : err)
+                            + '</div>';
+                    }
+                });
+            }
+
+            (function () {
+                var page = document.querySelector('#MediaOnlyConfigPage');
+                page.addEventListener('pageshow', initPage);
+                page.addEventListener('viewshow', initPage);
+                setTimeout(initPage, 500);
+            })();
+
+            document.querySelector('#MediaOnlyConfigForm')
+                .addEventListener('submit', function (e) {
+                    e.preventDefault();
+                    var page = this.closest('#MediaOnlyConfigPage');
+                    Dashboard.showLoadingMsg();
+                    ApiClient.getPluginConfiguration(MediaOnlyConfig.pluginUniqueId).then(function (config) {
+                        config.Enabled = page.querySelector('#chkEnabled').checked;
+                        config.IgnoreFilesWithoutExtension = page.querySelector('#chkNoExtension').checked;
+                        config.AllowedExtensions = allowedEditor.getItems();
+                        config.TargetLibraries = Array.prototype.slice
+                            .call(page.querySelectorAll('.chkLibrary:checked'))
+                            .map(function (c) { return c.getAttribute('data-name'); });
+                        ApiClient.updatePluginConfiguration(
+                            MediaOnlyConfig.pluginUniqueId, config
+                        ).then(Dashboard.processPluginConfigurationUpdateResult);
+                    });
+                    return false;
+                });
+        </script>
+    </div>
+</body>
+
+</html>
