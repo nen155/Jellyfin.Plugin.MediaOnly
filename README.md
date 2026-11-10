@@ -1,5 +1,9 @@
 # Jellyfin.Plugin.MediaOnly
 
+<p align="center">
+  <img src="logo.png" alt="Logo de Media Only Filter" width="180">
+</p>
+
 Plugin para **Jellyfin** que ignora, durante el escaneo de bibliotecas,
 cualquier archivo cuya extensión **no sea de vídeo o imagen**.
 
